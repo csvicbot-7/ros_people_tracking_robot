@@ -48,6 +48,9 @@ ros::Subscriber m_mapSub;
 ros::Subscriber m_wheelSpeedSub;
 ros::Subscriber m_humanPoseSub;
 
+//Markers
+ros::Publisher m_pointMarkerPub;
+
 //Wheel controller vars
 float m_wheelLeft;
 float m_wheelRight;
@@ -107,5 +110,7 @@ float getDistance2D(float x1, float x2, float y1, float y2);
 
 //ROS spin
 void spin();
+//Marker function
+void publishPointMarker(const geometry_msgs::Point &point, std::string frameId);
 
 #endif // WHEELCHAIRNAV_H

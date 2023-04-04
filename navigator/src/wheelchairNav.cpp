@@ -53,6 +53,8 @@ void spin() {
 	m_wheelSpeedSub = n.subscribe("aunav_velocity_controller/cmd_wheel", 1000, &wheelSpeedCallback);
   m_humanPoseSub = n.subscribe<geometry_msgs::Point>("/people_follower/humanGoal", 1000, humanPoseCallback);
 
+	m_pointMarkerPub = n.advertise<visualization_msgs::Marker>("/people_follower/markerPoint", 1);
+
 	ros::Rate loop_rate(10);
 
 	while (ros::ok()) {
@@ -71,6 +73,7 @@ void spin() {
 						case WheelchairStatus::STAND_BY: {
 							geometry_msgs::Point evalWheelchairPose, refWheelchairPose;
 							evalWheelchairPose = estimatedWheelchairPose(m_humanPose, 1.5);
+							publishPointMarker(evalWheelchairPose, "os_sensor");
 							refWheelchairPose.x = 0.0;
 							refWheelchairPose.y = 0.0;
 							refWheelchairPose.z = 0.0;
@@ -84,11 +87,12 @@ void spin() {
 										if (poseValid(m_target.position, m_radiusValidPose)) {
 											moveWheelchair(m_target);
 											m_wheelchairStatus = WheelchairStatus::LOCATING_HUMAN;
+											ROS_WARN("Navigator [mainloop]: Moving to next human position; Status =  LOCATING_HUMAN");
 										} else {
 											//ERROR
 											m_sEtoR.finish = true;
 											shmMemory.setData(m_sEtoR);
-											ROS_WARN("The pose selected is not valid, the human guide must look for another path");
+											ROS_WARN("Navigator [mainloop]: The pose selected is not valid, the human guide must look for another path");
 										}
 									}
 								}
@@ -98,6 +102,7 @@ void spin() {
 							/* if (!poseValid(m_target.position, m_radiusValidPose)) {
 								m_ac->cancelGoal();
 							} */
+							publishPointMarker(m_target.position, "map");
 						} break;
 						case WheelchairStatus::HUMAN_LOCATED: {
 							geometry_msgs::Pose wheelchairPoseBL;
@@ -110,7 +115,9 @@ void spin() {
 								if (transPoseBL2M(wheelchairPoseBL, m_target)) {
 									if (poseValid(m_target.position, m_radiusValidPose)) {
 										moveWheelchair(m_target);
+										publishPointMarker(m_target.position, "map");
 										m_wheelchairStatus = WheelchairStatus::MOVING_TO_GOAL;
+										ROS_WARN("Navigator [mainloop]: Moving to goal valided; Status =  MOVING_TO_GOAL");
 										break;
 									}
 									inc++;
@@ -119,7 +126,7 @@ void spin() {
 							// ERROR
 							m_sEtoR.finish = true;
 							shmMemory.setData(m_sEtoR);
-							ROS_WARN("There are many obstacles, is not posible find a pose valid");
+							ROS_WARN("Navigator [mainloop]: There are many obstacles, is not posible find a pose valid");
 						} break;
 						case WheelchairStatus::MOVING_TO_GOAL: {
 							geometry_msgs::Point refHumanPose;
@@ -132,8 +139,10 @@ void spin() {
 								refHumanPose.y = -1.5;
 								refHumanPose.z = 0.0;
 							}
+							publishPointMarker(refHumanPose, "os_sensor");
 							if (!pointInsideZone(m_humanPose, refHumanPose, m_radiusHuamn)) {
 								m_ac->cancelGoal();
+								ROS_WARN("Navigator [mainloop]: Human point outside the zone, aborted plan");
 							}
 							geometry_msgs::Point startPoint, endPoint;
 							startPoint.x = m_wheelchairPose.position.x;
@@ -144,6 +153,7 @@ void spin() {
 							endPoint.z = m_target.position.z;
 							if (detectObstacle(startPoint, endPoint)) {
 								m_wheelchairStatus = WheelchairStatus::OBSTACLE_DETECTED;
+								ROS_WARN("Navigator [mainloop]: There is a obstacle in the path; Status =  OBSTACLE_DETECTED");
 							}
 							/* if (!poseValid(m_target.position, m_radiusValidPose)) {
 								m_ac->cancelGoal();
@@ -153,6 +163,7 @@ void spin() {
 							/* if (!poseValid(m_target.position, m_radiusValidPose)) {
 								m_ac->cancelGoal();
 							} */
+							publishPointMarker(m_target.position, "map");
 						} break;
 					}
 				} else {
@@ -316,6 +327,7 @@ geometry_msgs::Point estimatedWheelchairPose(const geometry_msgs::Point &humanPo
 			estimatedPose.y = humanPose.y + dist * cos(M_PI - m_humanOrientation);
 		}
 	}
+	return estimatedPose;
 }
 
 bool transPointBL2M(const geometry_msgs::Point &pointIn, geometry_msgs::Point &pointOut) {
@@ -572,25 +584,32 @@ void moveWheelchairDone(const actionlib::SimpleClientGoalState& state,  const mo
 			}
 			if (pointInsideZone(m_humanPose, refHumanPose, m_radiusHuamn)) {
 				m_wheelchairStatus = WheelchairStatus::HUMAN_LOCATED;
+				ROS_WARN("Navigator [moveWheelchairDone]: Position next to human ok; Status =  HUMAN_LOCATED");
 			} else {
 				m_wheelchairStatus = WheelchairStatus::STAND_BY;
+				ROS_WARN("Navigator [moveWheelchairDone]: Human point outside the zone;  Status =  STAND_BY");
 			}
 		} else {
 			m_wheelchairStatus = WheelchairStatus::STAND_BY;
+			ROS_WARN("Navigator [moveWheelchairDone]: Aborted plan; Status =  STAND_BY");
 		}
 		break;
 	case WheelchairStatus::MOVING_TO_GOAL:
 		if (state == actionlib::SimpleClientGoalState::SUCCEEDED) {
 			m_wheelchairStatus = WheelchairStatus::HUMAN_LOCATED;
+			ROS_WARN("Navigator [moveWheelchairDone]: Path goal reached; Status =  HUMAN_LOCATED");
 		} else {
 			m_wheelchairStatus = WheelchairStatus::STAND_BY;
+			ROS_WARN("Navigator [moveWheelchairDone]: Path goal no reached; Status =  STAND_BY");
 		}
 		break;
 	case WheelchairStatus::OBSTACLE_DETECTED:
 		if (state == actionlib::SimpleClientGoalState::SUCCEEDED) {
 			m_wheelchairStatus = WheelchairStatus::HUMAN_LOCATED;
+			ROS_WARN("Navigator [moveWheelchairDone]: Obstacle successfully avoided; Status =  HUMAN_LOCATED");
 		} else {
 			m_wheelchairStatus = WheelchairStatus::STAND_BY;
+			ROS_WARN("Navigator [moveWheelchairDone]: Obstacle no successfully avoided; Status =  STAND_BY");
 		}
 		break;
 	}
@@ -607,4 +626,27 @@ void wheelSpeedCallback(const frontiers_exploration::wheelSpeed &msg) {
 		m_sEtoR.speedRight = m_wheelRight;
 		m_bLockSet = shmMemory.setData(m_sEtoR);
 	}
+}
+
+void publishPointMarker(const geometry_msgs::Point &point, std::string frameId) {
+	visualization_msgs::Marker markerPoint;
+
+	markerPoint.header.frame_id = frameId;
+	markerPoint.header.stamp = ros::Time::now();
+	markerPoint.id = 0;
+  markerPoint.type = visualization_msgs::Marker::SPHERE;
+  markerPoint.action = visualization_msgs::Marker::ADD;
+  markerPoint.ns = "navigator";
+  markerPoint.scale.x = 0.2;
+  markerPoint.scale.y = 0.2;
+  markerPoint.scale.z = 0.2;
+  markerPoint.color.a = 1.0;
+  markerPoint.color.r = 0.0;
+  markerPoint.color.g = 1.0;
+  markerPoint.color.b = 0.0;
+
+	markerPoint.pose.position.x = point.x;
+	markerPoint.pose.position.y = point.y;
+	markerPoint.pose.position.z = point.z;
+	m_pointMarkerPub.publish(markerPoint);
 }
