@@ -1,0 +1,4 @@
+<launch>
+  <node type="antiCrash" name="antiCrash" pkg="anticrash" output="screen">
+  </node>
+</launch>
