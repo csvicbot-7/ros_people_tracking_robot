@@ -143,6 +143,10 @@ void PeopleFollower::pointCloudCallback(const sensor_msgs::PointCloud2ConstPtr &
 		else {
 			if (humanPoseArray.poses.size() == 0) {
 				ROS_WARN("Human goal being tracked was lost!");
+				m_humanGoal.x = m_humanPos.x;
+				m_humanGoal.y = m_humanPos.y;
+				m_humanGoal.z = m_humanPos.z;
+				m_humanGoalPub.publish(m_humanGoal);
 				m_lost.data = true;
 				m_lastHumanPos = m_humanPos;
 			} else {
@@ -157,12 +161,11 @@ void PeopleFollower::pointCloudCallback(const sensor_msgs::PointCloud2ConstPtr &
 					m_humanGoal.z = m_humanPos.z;
 					m_humanGoalPub.publish(m_humanGoal);
 					m_lost.data = false;
-					m_lostPub.publish(m_lost);
 					m_firstIter = false;
 					m_lastHumanPos = m_humanPos;
 				}
-				m_lostPub.publish(m_lost);
 			}
+			m_lostPub.publish(m_lost);
 		}
 		ROS_INFO("lazarillo position: (%lf, %lf, %lf)", m_humanPos.x, m_humanPos.y, m_humanPos.z);
 		ROS_INFO("last lazarillo position: (%lf, %lf, %lf)", m_lastHumanPos.x, m_lastHumanPos.y, m_lastHumanPos.z);    
