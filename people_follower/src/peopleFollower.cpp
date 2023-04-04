@@ -1,3 +1,21 @@
+// ROS
+#include <ros/ros.h>
+#include <std_msgs/Bool.h>
+#include <sensor_msgs/PointCloud2.h>
+#include <geometry_msgs/PoseArray.h>
+#include <geometry_msgs/Point.h>
+#include <visualization_msgs/MarkerArray.h>
+#include <sensor_msgs/PointCloud2.h>
+#include <sensor_msgs/point_cloud2_iterator.h>
+// PCL
+#include <pcl_conversions/pcl_conversions.h>
+#include <pcl/filters/extract_indices.h>
+#include <pcl/filters/passthrough.h>
+#include <pcl/segmentation/sac_segmentation.h>
+#include <pcl/segmentation/extract_clusters.h>
+#include <pcl/common/centroid.h>
+#include <pcl/common/common.h>
+#include <pcl/common/pca.h>
 // SVM
 #include "svm.h"
 
@@ -5,15 +23,15 @@
 
 PeopleFollower::PeopleFollower() : m_privateNh ("~") {
 	m_pointCloudSub = m_nodeHandle.subscribe<sensor_msgs::PointCloud2>("/os_cloud_node/points", 1, &PeopleFollower::pointCloudCallback, this);
-	m_startTrackingSub = m_nodeHandle.subscribe<std_msgs::Bool>("/people_follower/start", 1, &PeopleFollower::trackingCallback, this);
+	m_startTrackingSub = m_nodeHandle.subscribe("/people_follower/start", 1, &PeopleFollower::trackingCallback, this);
 	
 	m_markerArrayPub = m_nodeHandle.advertise<visualization_msgs::MarkerArray>("/people_follower/markers", 100);
+	m_markerHumanGoalPub = m_nodeHandle.advertise<visualization_msgs::Marker>("/people_follower/markerHuman", 100);
 	m_poseArrayPub = m_nodeHandle.advertise<geometry_msgs::PoseArray>("/people_follower/poses", 100);
 	m_cropBoxPub = m_nodeHandle.advertise<sensor_msgs::PointCloud2>("/people_follower/cropBox", 100);
-	m_clusterPub = m_nodeHandle.advertise<>
 	m_humanGoalPub = m_nodeHandle.advertise<geometry_msgs::Point>("/people_follower/humanGoal", 100);
 	m_clusterCloudPub = m_nodeHandle.advertise<sensor_msgs::PointCloud2>("/people_follower/clusterCloud", 100);
-	m_lostPub = nh.advertise<std_msgs::Bool>("/people_follower/lost",1);
+	m_lostPub = m_nodeHandle.advertise<std_msgs::Bool>("/people_follower/lost",1);
 	
 	/*** Parameters ***/
 	
@@ -24,7 +42,7 @@ PeopleFollower::PeopleFollower() : m_privateNh ("~") {
 	m_privateNh.param<float>("z_limit_max", m_ZlimitMax, 1.2);
 	m_privateNh.param<int>("cluster_size_min", m_clusterSizeMin, 5);
 	m_privateNh.param<int>("cluster_size_max", m_clusterSizeMax, 30000);
-	m_privateNh.param<float>("human_probability", m_humanProbability, 0.95);
+	m_privateNh.param<float>("human_probability", m_humanProbability, 0.70);
 	m_privateNh.param<bool>("human_size_limit", m_humanSizeLimit, true);
 	
 	m_humanMarker.id = 0;
@@ -91,12 +109,17 @@ void PeopleFollower::pointCloudCallback(const sensor_msgs::PointCloud2ConstPtr &
 	pcl::PointCloud<pcl::PointXYZI>::Ptr clusterCloud(new pcl::PointCloud<pcl::PointXYZI>);
 	
 	cropBox(cloud, cloudPtr);
-	cloudPtr->header.frame_id = cloud->header.frame_id;
-	m_cropBoxPub.publish(cloudPtr);
+	// cloudPtr->header.frame_id = cloud->header.frame_id;
+	// sensor_msgs::PointCloud2 rosCloud;
+  // pcl::toROSMsg(*cloudPtr, rosCloud);
+  //m_cropBoxPub.publish(rosCloud);
+
 	extractCluster(cloudPtr, clusterCloud);
-	clusterCloud->header.frame_id = cloud->header.frame_id;
-	m_clusterCloudPub.publish(clusterCloud);
-	auto humanPoseArray classify();
+	// clusterCloud->header.frame_id = cloud->header.frame_id;
+	// sensor_msgs::PointCloud2 rosCloud2;
+	// pcl::toROSMsg(*clusterCloud, rosCloud2);
+	// m_clusterCloudPub.publish(rosCloud2);
+	auto humanPoseArray  = classify();
 
 	if (m_startTracking){
 
@@ -104,7 +127,7 @@ void PeopleFollower::pointCloudCallback(const sensor_msgs::PointCloud2ConstPtr &
 		m_humanMarker.pose.position.y = m_lastHumanPos.y;
 		m_humanMarker.pose.position.z = 0.0;
 		m_humanMarker.header = cloud->header;
-		goalPub.publish(m_humanMarker); 
+		m_markerHumanGoalPub.publish(m_humanMarker);
 		
 		auto min_distance = DBL_MAX;
 		double dist;
@@ -118,22 +141,28 @@ void PeopleFollower::pointCloudCallback(const sensor_msgs::PointCloud2ConstPtr &
 			m_lastHumanPos = m_humanPos;
 		}
 		else {
-			m_humanPos = getClosestPose(m_lastHumanPos, humanPoseArray);
-			if (euclideanDistance(m_humanPos, m_lastHumanPos) > 0.6) {
-				ROS_WARN("Human goal being tracked was lost!");               
+			if (humanPoseArray.poses.size() == 0) {
+				ROS_WARN("Human goal being tracked was lost!");
 				m_lost.data = true;
-				//return;
-			} else {
-				m_humanGoal.x = m_humanPos.x;
-				m_humanGoal.y = m_humanPos.y;
-				m_humanGoal.z = m_humanPos.z;
-				m_humanGoalPub.publish(m_humanGoal);
-				m_lost.data = false;
-				m_statusPub.publish(m_lost);
-				m_firstIter = false;
 				m_lastHumanPos = m_humanPos;
+			} else {
+				m_humanPos = getClosestPose(m_lastHumanPos, humanPoseArray);
+				if (euclideanDistance(m_humanPos, m_lastHumanPos) > 0.6) {
+					ROS_WARN("Human goal being tracked was lost!");
+					m_lost.data = true;
+					//return;
+				} else {
+					m_humanGoal.x = m_humanPos.x;
+					m_humanGoal.y = m_humanPos.y;
+					m_humanGoal.z = m_humanPos.z;
+					m_humanGoalPub.publish(m_humanGoal);
+					m_lost.data = false;
+					m_lostPub.publish(m_lost);
+					m_firstIter = false;
+					m_lastHumanPos = m_humanPos;
+				}
+				m_lostPub.publish(m_lost);
 			}
-			m_statusPub.publish(m_lost);
 		}
 		ROS_INFO("lazarillo position: (%lf, %lf, %lf)", m_humanPos.x, m_humanPos.y, m_humanPos.z);
 		ROS_INFO("last lazarillo position: (%lf, %lf, %lf)", m_lastHumanPos.x, m_lastHumanPos.y, m_lastHumanPos.z);    
@@ -145,21 +174,40 @@ void PeopleFollower::trackingCallback(const std_msgs::Bool &start) {
 }
 
 void PeopleFollower::cropBox (const sensor_msgs::PointCloud2ConstPtr& cloudMsg,
-								pcl::PointCloud<pcl::PointXYZI>::Ptr outCloudPtr)
+															pcl::PointCloud<pcl::PointXYZI>::Ptr outCloudPtr)
 {
+	ROS_INFO("Into cropbox");
 	pcl::PointXYZI pointFiltered;
+	int intensityIdx = -1;
+
+	for (size_t i = 0; i < cloudMsg->fields.size(); ++i) {
+		if (cloudMsg->fields[i].name == "intensity") {
+			intensityIdx = i;
+		}
+	}
+
+	if (intensityIdx == -1) {
+		ROS_WARN("There is not instensity field");
+	}
+
+	sensor_msgs::PointCloud2ConstIterator<float> xIt(*cloudMsg, "x");
+	sensor_msgs::PointCloud2ConstIterator<float> yIt(*cloudMsg, "y");
+	sensor_msgs::PointCloud2ConstIterator<float> zIt(*cloudMsg, "z");
+	sensor_msgs::PointCloud2ConstIterator<float> intensityIt(*cloudMsg, "intensity");
+	
 	if (!m_startTracking){
-		for (sensor_msgs::PointCloud2ConstIterator<float> it(*cloudMsg, "x"); it != it.end(); ++it){
-			if (it[0] > m_distX || it[0] < 0 ||
-				it[1] > m_distY || it[1] < -m_distY ||
-				it[2] > m_ZlimitMax || it[2] < m_ZlimitMin){
+		for (int i = 0; i < cloudMsg->width * cloudMsg->height; ++i, ++xIt, ++yIt, ++zIt, ++intensityIt){
+			if (*xIt > m_distX || *xIt < 0 ||
+				*yIt > m_distY || *yIt < -m_distY ||
+				*zIt > m_ZlimitMax || *zIt < m_ZlimitMin){
 			continue;
 			}
-			pointFiltered.x = it[0];
-			pointFiltered.y = it[1];
-			pointFiltered.z = it[2];
-			pointFiltered.intensity = it[3];
+			pointFiltered.x = *xIt;
+			pointFiltered.y = *yIt;
+			pointFiltered.z = *zIt;
+			pointFiltered.intensity = *intensityIt;
 			outCloudPtr->points.push_back(pointFiltered);
+			//ROS_INFO("intensity point %f", pointFiltered.intensity);
 		}
 	} else {
 		if (m_firstIter) {
@@ -167,21 +215,21 @@ void PeopleFollower::cropBox (const sensor_msgs::PointCloud2ConstPtr& cloudMsg,
 			m_humanPos.y = 0.0f;
 			m_humanPos.z = 0.0f;
 			m_distX = m_humanPos.x + 1.0f;
-			m_distY = m_humanPos.y + 1.0f;      
+			m_distY = m_humanPos.y + 1.0f;  
 		} else {
 			m_distX = m_lastHumanPos.x + 1.0f;
 			m_distY = m_lastHumanPos.y + 1.0f;
 		}
-		for (sensor_msgs::PointCloud2ConstIterator<float> it(*cloudMsg, "x"); it != it.end(); ++it){
-			if (it[0] > m_distX || it[0] < (m_distX - 2.0f) ||
-				it[1] > m_distY || it[1] < (m_distY - 2.0f) ||
-				it[2] > m_ZlimitMax || it[2] < m_ZlimitMin){
+		for (int i = 0; i < cloudMsg->width * cloudMsg->height; ++i, ++xIt, ++yIt, ++zIt, ++intensityIt){
+			if (*xIt > m_distX || *xIt < (m_distX - 2.0f) ||
+				*yIt > m_distY || *yIt < (m_distY - 2.0f) ||
+				*zIt > m_ZlimitMax || *zIt < m_ZlimitMin){
 			continue;
 			}
-			pointFiltered.x = it[0];
-			pointFiltered.y = it[1];
-			pointFiltered.z = it[2];
-			pointFiltered.intensity = it[3];
+			pointFiltered.x = *xIt;
+			pointFiltered.y = *yIt;
+			pointFiltered.z = *zIt;
+			pointFiltered.intensity = *intensityIt;
 			outCloudPtr->points.push_back(pointFiltered);
 		}
 	}
@@ -190,13 +238,35 @@ void PeopleFollower::cropBox (const sensor_msgs::PointCloud2ConstPtr& cloudMsg,
 void PeopleFollower::extractCluster(pcl::PointCloud<pcl::PointXYZI>::Ptr pc,
 																		pcl::PointCloud<pcl::PointXYZI>::Ptr clusterCloud) {
 	m_features.clear();
+
+	pcl::IndicesPtr pcIndices(new std::vector<int>);
 	
 	boost::array<std::vector<int>, m_nestedRegions> indicesArray;
-	for(int i = 0; i < pc->size(); i++) {
+/* 	for(int i = 0; i < pc->size(); i++) {
 		float range = 0.0;
 		float d2 = pc->points[i].x * pc->points[i].x +
 								pc->points[i].y * pc->points[i].y +
 								pc->points[i].z * pc->points[i].z;
+		for(int j = 0; j < m_nestedRegions; j++) {
+			if(d2 > range*range && d2 <= (range + m_zone[j])*(range + m_zone[j])) {
+				indicesArray[j].push_back(i);
+				break;
+			}
+			range += m_zone[j];
+		}
+	} */
+
+	for(int i = 0; i < pc->size(); i++) {
+		if (i % 2 == 0) {
+			pcIndices->push_back(i);
+		}
+	}
+
+	for(int i = 0; i < pcIndices->size(); i++) {
+		float range = 0.0;
+		float d2 = pc->points[(*pcIndices)[i]].x * pc->points[(*pcIndices)[i]].x +
+							 pc->points[(*pcIndices)[i]].y * pc->points[(*pcIndices)[i]].y +
+							 pc->points[(*pcIndices)[i]].z * pc->points[(*pcIndices)[i]].z;
 		for(int j = 0; j < m_nestedRegions; j++) {
 			if(d2 > range*range && d2 <= (range + m_zone[j])*(range + m_zone[j])) {
 				indicesArray[j].push_back(i);
@@ -247,12 +317,12 @@ void PeopleFollower::extractCluster(pcl::PointCloud<pcl::PointXYZI>::Ptr pc,
 				
 				Feature f;
 				extractFeature(cluster, f, min, max, centroid);
-/*         ROS_INFO("centroid: X= %f Y= %f Z= %f", f.centroid[0], f.centroid[1], f.centroid[2]);
+        ROS_INFO("centroid: X= %f Y= %f Z= %f", f.centroid[0], f.centroid[1], f.centroid[2]);
 				ROS_INFO("min: X= %f Y= %f Z= %f", f.min[0], f.min[1], f.min[2]);
-				ROS_INFO("max: X= %f Y= %f Z= %f", f.max[0], f.max[1], f.max[2]); */
+				ROS_INFO("max: X= %f Y= %f Z= %f", f.max[0], f.max[1], f.max[2]);
 				m_features.push_back(f);
 			}
-			//ROS_INFO("fectures vector: %lu", m_features.size());
+			ROS_INFO("fectures vector: %lu", m_features.size());
 		}
 	}
 	clusterCloud->width = clusterCloud->size();
@@ -303,7 +373,7 @@ void PeopleFollower::extractFeature(pcl::PointCloud<pcl::PointXYZI>::Ptr pc, Fea
 	}
 }
 
-void computeMomentOfInertiaTensorNormalized(pcl::PointCloud<pcl::PointXYZI> &pc, Eigen::Matrix3f &moment3d) {
+void PeopleFollower::computeMomentOfInertiaTensorNormalized(pcl::PointCloud<pcl::PointXYZI> &pc, Eigen::Matrix3f &moment3d) {
 	moment3d.setZero();
 	for(size_t i = 0; i < pc.size(); i++) {
 		moment3d(0,0) += pc[i].y*pc[i].y+pc[i].z*pc[i].z;
@@ -318,7 +388,7 @@ void computeMomentOfInertiaTensorNormalized(pcl::PointCloud<pcl::PointXYZI> &pc,
 	moment3d(2, 1) = moment3d(1, 2);
 }
 
-void computeSlice(pcl::PointCloud<pcl::PointXYZI>::Ptr pc, int n, float *slice) {
+void PeopleFollower::computeSlice(pcl::PointCloud<pcl::PointXYZI>::Ptr pc, int n, float *slice) {
 	Eigen::Vector4f pcMin, pcMax;
 	pcl::getMinMax3D(*pc, pcMin, pcMax);
 	
@@ -354,7 +424,7 @@ void computeSlice(pcl::PointCloud<pcl::PointXYZI>::Ptr pc, int n, float *slice) 
 	}
 }
 
-void computeIntensity(pcl::PointCloud<pcl::PointXYZI>::Ptr pc, int bins, float *intensity) {
+void PeopleFollower::computeIntensity(pcl::PointCloud<pcl::PointXYZI>::Ptr pc, int bins, float *intensity) {
 	float sum = 0, mean = 0, sumDev = 0;
 	float min = FLT_MAX, max = -FLT_MAX;
 	for(int i = 0; i < 27; i++)
@@ -514,16 +584,23 @@ void PeopleFollower::saveFeature(Feature &f, struct svm_node *x) {
 
 pcl::PointXYZ PeopleFollower::getClosestPose(pcl::PointXYZ &p, geometry_msgs::PoseArray &poseArray) {
 	auto minDistance = DBL_MAX;
-	double distance;
+	double distance2;
 	pcl::PointXYZ closestPose;
-	for (auto &i : poseArray) {
-		distance2 = (p.x - i.position.x)*(p.x - i.position.x) + (p.y - i.position.y)*(p.y - i.position.y)
+	for (auto &i : poseArray.poses) {
+		distance2 = (p.x - i.position.x)*(p.x - i.position.x) + (p.y - i.position.y)*(p.y - i.position.y);
 		if (distance2 < minDistance) {
 			closestPose.x = i.position.x;
 			closestPose.y = i.position.y;
-			minDistance = distance;
+			minDistance = distance2;
 		}
 	}
 	closestPose.z = 0;
 	return closestPose;
+}
+
+int main(int argc, char **argv) {
+  ros::init(argc, argv, "people_follower");
+  auto peopleF = PeopleFollower();
+  ros::spin();
+  return 0;
 }

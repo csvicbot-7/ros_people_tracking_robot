@@ -1,0 +1,8 @@
+<launch>
+  
+  <node pkg="people_follower" type="peopleFollower" name="people_follower" output="screen" respawn="false">
+      <param name="model_file_name" type="string" value="$(find people_follower)/libsvm/pedestrian.model"/>
+      <param name="range_file_name" type="string" value="$(find people_follower)/libsvm/pedestrian.range"/>
+  </node>
+  
+</launch>
