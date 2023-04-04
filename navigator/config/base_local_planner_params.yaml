@@ -1,0 +1,38 @@
+TrajectoryPlannerROS:
+
+# Robot Configuration Parameters
+  max_vel_x: 0.7
+  min_vel_x: -0.3
+
+  max_vel_theta:  0.5
+  min_vel_theta: 0.3
+  min_in_place_vel_theta: 0.6
+
+  escape_vel: -0.1
+
+  acc_lim_x: 0.8
+  acc_lim_theta: 0.2
+
+# Differential-drive robot configuration
+  holonomic_robot: False        #
+
+# Goal Tolerance Parameters
+  latch_xy_goal_tolerance: false #
+  yaw_goal_tolerance: 0.79
+  xy_goal_tolerance: 0.5
+
+# Forward Simulation Parameters
+  sim_time: 4.0        # 1.7
+  sim_granularity: 0.025 # 0.025
+  vx_samples: 100       # 3
+  vtheta_samples: 100  # 20
+
+# Trajectory Scoring Parameters
+  meter_scoring: True            #  Use meter scoring
+  pdist_scale: 3.5        #   - weighting for how much it should stick to the global path plan
+  gdist_scale: 4        #   - weighting for how much it should attempt to reach its goal
+  occdist_scale: 0.3            #   - weighting for how much the controller should avoid obstacles
+  dwa: True                      # DWA available
+
+# Oscillation Prevention Parameters
+  oscillation_reset_dist: 0.05

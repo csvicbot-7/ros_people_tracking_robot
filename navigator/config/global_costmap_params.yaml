@@ -1,0 +1,20 @@
+global_costmap:
+   global_frame: map
+   # robot_base_frame: base_footprint
+   robot_base_frame: base_link
+   update_frequency: 2.0
+   publish_frequency: 2.0
+   static_map: true
+   # rolling_window: false #SUPER IMPORTANTE NO CAMBIARLO
+   # always_send_full_costmap: true
+   resolution: 0.05 #0.1 before but since the resolution of the grid is 0.1 this is adapted to that value
+   transform_tolerance: 2.0
+   plugins:
+    - {name: static, type: "costmap_2d::StaticLayer"} #El orden de los factores altera el resultado
+    - {name: obstacle_layer,  type: "costmap_2d::VoxelLayer"}
+    - {name: inflation_layer, type: "costmap_2d::InflationLayer"}
+
+   inflation_layer:
+    enabled:              true
+    cost_scaling_factor:  3.0  # 2.0 before exponential rate at which the obstacle cost drops off (default: 10)
+    inflation_radius:     1.9

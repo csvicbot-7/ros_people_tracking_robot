@@ -1,0 +1,36 @@
+local_costmap:
+   global_frame: map
+   # robot_base_frame: base_footprint
+   robot_base_frame: base_link
+   update_frequency: 20.0
+   publish_frequency: 20.0
+   static_map: false #it was false before but it was creating a problem because the robot was not able to go though the door.
+   rolling_window: true
+   width: 6.0
+   height: 6.0
+   resolution: 0.05
+   transform_tolerance: 2.0
+   # map_type: costmap
+   plugins:
+    - {name: obstacle_layer,  type: "costmap_2d::VoxelLayer"}
+    - {name: inflation_layer, type: "costmap_2d::InflationLayer"}
+   
+   inflation_layer:
+    enabled:              true
+    cost_scaling_factor:  3.0  # 2.0 before exponential rate at which the obstacle cost drops off (default: 10)
+    inflation_radius:     1.9
+
+   # obstacle_layer:
+   #   observation_sources: scan
+   #   scan:
+   #    topic: /os_cloud_node/points
+   #    obstacle_max_range: 2.5
+   #    obstacle_min_range: 0.0
+   #    raytrace_max_range: 3.0
+   #    raytrace_min_range: 0.0
+   #    max_obstacle_height: 2.0
+   #    min_obstacle_height: 0.0
+   #    clearing: True
+   #    marking: True
+   #    data_type: "LaserScan"
+   #    inf_is_valid: false
