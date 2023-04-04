@@ -10,7 +10,7 @@
   <arg name="publish_frame_id"   default="true"/>
   <!-- <arg name="tf_height"          default="1.15" />   0.49 -->
   <arg name="pusblish_guess_id"  default="false" />
-  <arg name="high_resolution"    default="true" />
+  <arg name="high_resolution"    default="false" />
   <arg name="wait_for_transform" default="0.2"/>
   <arg name="intensity_filter"   default="false" />
   <arg name="fp_Height"          default="3.0" />
@@ -106,19 +106,17 @@
   <node pkg="nodelet" type="nodelet" name="imu_nodelet_manager" args="manager">
     <remap from="imu/data_raw" to="/os_cloud_node/imu"/>
     <remap from="imu/data" to="/os_cloud_node/imu/data"/>
-    <param name="~/timestamp_mode" type="str" value="$(arg timestamp_mode)"/>   
   </node>
   <node pkg="nodelet" type="nodelet" name="imu_filter" args="load imu_filter_madgwick/ImuFilterNodelet imu_nodelet_manager">
     <param name="use_mag" value="false"/>
     <param name="world_frame" value="enu"/>
     <param name="publish_tf" value="false"/>
-    <param name="~/timestamp_mode" type="str" value="$(arg timestamp_mode)"/>       
+    <param name="constant_dt" value="0.01"/>
   </node>
   <node if="$(arg pusblish_guess_id)" pkg="nodelet" type="nodelet" name="imu_to_tf" args="load rtabmap_ros/imu_to_tf imu_nodelet_manager">
     <remap from="imu/data" to="/os_cloud_node/imu/data"/>
     <param name="fixed_frame_id" value="$(arg frame_id)_stabilized"/>
     <param name="base_frame_id" value="$(arg frame_id)"/>
-    <param name="~/timestamp_mode" type="str" value="$(arg timestamp_mode)"/>    
   </node>
 
   <group ns="rtabmap">
@@ -141,25 +139,33 @@
       <param name="wait_for_transform"          type="bool"   value="true"/>
       <param name="wait_for_transform_duration" type="double" value="0.5"/>
 
-
       <!-- ICP parameters -->
-      <!-- ICP parameters -->
-      <param name="Icp/VoxelSize"                 type="string" value="$(arg voxel_size)"/>
-      <param name="Icp/PointToPlaneK"             type="string" value="50"/>
-      <param name="Icp/PointToPlaneRadius"        type="string" value="0"/>
-      <param name="Icp/PointToPlane"              type="string" value="true"/>
-      <param name="Icp/Iterations"                type="string" value="10"/>
-      <param name="Icp/Epsilon"                   type="string" value="0.001"/>
-      <param name="Icp/MaxTranslation"            type="string" value="3"/>
-      <param name="Icp/MaxCorrespondenceDistance" type="string" value="1"/>
-      <param name="Icp/PM"                        type="string" value="true"/>
-      <param name="Icp/PMOutlierRatio"            type="string" value="0.5"/>
-      <param name="Icp/CorrespondenceRatio"       type="string" value="0.01"/>
+      <!-- <param name="Icp/VoxelSize"                 type="string" value="$(arg voxel_size)"/> -->
+      <param name="Icp/VoxelSize"                 type="string" value="0.2"/>   <!-- Uniform sampling voxel size (0=disabled). Default: 0.05 -->
+      <param name="Icp/PointToPlaneK"             type="string" value="50"/>    <!-- Number of neighbors to compute normals for point to plane if the cloud doesn't have already normals. Default: 5.-->
+      <param name="Icp/PointToPlaneRadius"        type="string" value="0"/>     <!-- Search radius to compute normals for point to plane if the cloud doesn't have already normals. Default: 0. -->
+      <param name="Icp/PointToPlane"              type="string" value="true"/>  <!-- Use point to plane ICP. Default: true -->
+      <param name="Icp/Iterations"                type="string" value="10"/>    <!-- Max iterations. Default: 30.-->
+      <param name="Icp/Epsilon"                   type="string" value="0.001"/> <!-- Set the transformation epsilon (maximum allowable difference between two consecutive transformations) in order for an optimization to be considered as having converged to the final solution. Default: 0.-->
+      <param name="Icp/MaxTranslation"            type="string" value="1.0"/>   <!-- Maximum ICP translation correction accepted (m). Default: 0.2 -->
+      <param name="Icp/MaxRotation"               type="string" value="0.78"/>  <!-- Maximum ICP rotation correction accepted (rad). Default: 0.78 -->
+      <param name="Icp/MaxCorrespondenceDistance" type="string" value="0.2"/>   <!-- Max distance for point correspondences. Default: 0.1. -->
+      <param name="Icp/PM"                        type="string" value="true"/>  <!-- Really exists? -->
+      <param name="Icp/PMOutlierRatio"            type="string" value="0.5"/>   <!-- Outlier ratio used with Icp/Strategy>0. For libpointmatcher, this parameter set TrimmedDistOutlierFilter/ratio for convenience when configuration file is not set. For CCCoreLib, this parameter set the "finalOverlapRatio". The value should be between 0 and 1. Default: 0.85.-->
+      <param name="Icp/CorrespondenceRatio"       type="string" value="0.01"/>  <!-- Ratio of matching correspondences to accept the transform. Default: 0.1. -->
+      <param name="Icp/RangeMin"                  type="string" value="1.50"/>  <!-- Minimum range filtering (0=disabled). Default: 0. -->
+      <param name="Icp/RangeMax"                  type="string" value="0.00"/>  <!-- Maximum range filtering (0=disabled). Default: 0. -->
+      <param name="Icp/Strategy"                  type="string" value="1"/>     <!-- ICP implementation: 0=Point Cloud Library, 1=libpointmatcher, 2=CCCoreLib (CloudCompare). Default: 1. -->
 
-      <param name="Odom/ScanKeyFrameThr"       type="string" value="0.95"/>
-      <param name="Odom/Strategy"              type="string" value="0"/>
-      <param name="OdomF2M/ScanSubtractRadius" type="string" value="$(arg voxel_size)"/>
-      <param name="OdomF2M/ScanMaxSize"        type="string" value="20000"/>
+      <param name="Odom/AlignWithGround"          type="string" value="false"/> <!-- Align odometry with the ground on initialization. Default: false. -->
+      <param name="Odom/ScanKeyFrameThr"          type="string" value="0.6"/>   <!-- [Geometry] Create a new keyframe when the number of ICP inliers drops under this ratio of points in last frame's scan. Setting the value to 0 means that a keyframe is created for each processed frame. Default: 0.9.-->
+      <param name="Odom/Strategy"                 type="string" value="0"/>     <!-- [0=Frame-to-Map (F2M) 1=Frame-to-Frame (F2F) 2=Fovis 3=viso2 4=DVO-SLAM 5=ORB_SLAM2 6=OKVIS 7=LOAM 8=MSCKF_VIO 9=VINS-Fusion 10=OpenVINS 11=FLOAM 12=Open3D]. Default: 0.-->
+      <param name="Odom/FilteringStrategy"        type="string" value="1"/>     <!-- "0=No filtering 1=Kalman filtering 2=Particle filtering. This filter is used to smooth the odometry output." -->
+      <param name="Odom/Holonomic"                type="string" value="false"/> <!-- "If the robot is holonomic (strafing commands can be issued). If not, y value will be estimated from x and yaw values (y=x*tan(yaw))." -->
+      <param name="Odom/KalmanProcessNoise"       type="string" value="0.1"/>   <!-- Process measurement covariance value. Default: 0.01 -->
+      <param name="Odom/KalmanMeasurementNoise"   type="string" value="0.01"/>  <!-- Process noise covariance value. Default: 0.001 -->
+      <param name="OdomF2M/ScanSubtractRadius"    type="string" value="$(arg voxel_size)"/>
+      <param name="OdomF2M/ScanMaxSize"           type="string" value="20000"/>
 
       <!-- <param name="Reg/Strategy"                   type="string" value="1"/> -->
     </node>
@@ -189,7 +195,7 @@
       <remap from="imu" to="/os_cloud_node/imu/data"/>
 
       <!-- RTAB-Map's parameters -->
-      <param name="Rtabmap/DetectionRate"       type="string" value="0.5"/>
+      <param name="Rtabmap/DetectionRate"       type="string" value="4.0"/>
       <!-- <param name="Rtabmap/TimeThr"             type="string" value="500"/> -->
 
       <param name="RGBD/NeighborLinkRefining"   type="string" value="true"/>
@@ -204,7 +210,7 @@
       <param name="Optimizer/Strategy"          type="string" value="1"/>
       <param name="Optimizer/Iterations"        type="string" value="30"/>
 
-      <!-- <param name="Grid/Sensor"                 type="string"   value="0"/> -->
+      <param name="Grid/Sensor"                 type="string"   value="0"/> <!-- 0: laser scan, 1: depth image(s), 2: both, default: 1-->
       <param name="Grid/3D"                     type="bool"   value="true"/>
       <param name="Grid/RayTracing"             type="bool"   value="false"/>
       <param     if="$(arg high_resolution)" name="Grid/CellSize" type="string" value="0.1"/>
@@ -215,32 +221,39 @@
       <param name="Grid/MaxObstacleHeight"      type="string" value="2.0"/>
       <param name="Grid/MaxGroundAngle"         type="string" value="15"/>  <!-- 15 funciona con escalon y sin ruido --> 
       <param name="Grid/MinClusterSize"         type="string" value="20"/>  <!-- 20 funciona con escalon y sin rudio, 2022-09-22 Cambiado de 20 a 40-->
-      <param name="Grid/NormalK"                type="string" value="25"/>  <!-- 25 funciona con escalon y sin rudio -->
+      <param name="Grid/NormalK"                type="string" value="27"/>  <!-- 25 funciona con escalon y sin rudio -->
+      <param name="Grid/FlatObstacleDetected"   type="string" value="false"/>
+      <param name="Grid/NormalsSegmentation"    type="string" value="true"/>
 
-      <param name="Grid/NoiseFilteringMinNeighbors" type="string" value="10"/>  <!-- 10  funciona con escalon y sin rudio, 2022-09-22 Cambiado de 10 a 20, 2022-12-20 de 20 a 10 -->
+      <param name="Grid/NoiseFilteringMinNeighbors" type="string" value="15"/>  <!-- 10  funciona con escalon y sin rudio, 2022-09-22 Cambiado de 10 a 20, 2022-12-20 de 20 a 10 -->
       <param name="Grid/NoiseFilteringRadius"       type="string" value="0.5"/> <!-- 0.5 funciona con escalon y sin rudio -->
 
       <param name="Grid/UpdateError"            type="string" value="0.01"/>
-      <param name="Grid/RangeMax"               type="string" value="10"/>
+      <param name="Grid/RangeMax"               type="string" value="8"/>
       <param name="Grid/RangeMin"               type="string" value="0.2"/>
       <!-- <param name="GridGlobal/Eroded"               type="bool" value="true"/> -->
       <param name="Grid/PreVoxelFiltering"      type="bool" value="true"/>
-      <!-- ICP parameters -->
+
       <param name="Grid/FootprintHeight"        type="string" value="$(arg fp_Height)"/>
       <param name="Grid/FootprintLength"        type="string" value="$(arg fp_Length)"/>
       <param name="Grid/FootprintWidth"         type="string" value="$(arg fp_Width)"/>
 
+      <!-- ICP parameters -->
       <param name="Icp/VoxelSize"                 type="string" value="$(arg voxel_size)"/>
-      <param name="Icp/PointToPlaneK"             type="string" value="50"/>
-      <param name="Icp/PointToPlaneRadius"        type="string" value="0"/>
-      <param name="Icp/PointToPlane"              type="string" value="true"/>
-      <param name="Icp/Iterations"                type="string" value="30"/>
-      <param name="Icp/Epsilon"                   type="string" value="0.001"/>
-      <param name="Icp/MaxTranslation"            type="string" value="3"/>
-      <param name="Icp/MaxCorrespondenceDistance" type="string" value="1"/>
-      <param name="Icp/PM"                        type="string" value="true"/>
-      <param name="Icp/PMOutlierRatio"            type="string" value="0.85"/>
-      <param name="Icp/CorrespondenceRatio"       type="string" value="0.2"/>
+      <param name="Icp/PointToPlaneK"             type="string" value="50"/>    <!-- Number of neighbors to compute normals for point to plane if the cloud doesn't have already normals. Default: 5.-->
+      <param name="Icp/PointToPlaneRadius"        type="string" value="0"/>     <!-- Search radius to compute normals for point to plane if the cloud doesn't have already normals. Default: 0. -->
+      <param name="Icp/PointToPlane"              type="string" value="true"/>  <!-- Use point to plane ICP. Default: true -->
+      <param name="Icp/Iterations"                type="string" value="10"/>    <!-- Max iterations. Default: 30.-->
+      <param name="Icp/Epsilon"                   type="string" value="0.001"/> <!-- Set the transformation epsilon (maximum allowable difference between two consecutive transformations) in order for an optimization to be considered as having converged to the final solution. Default: 0.-->
+      <param name="Icp/MaxTranslation"            type="string" value="1.0"/>   <!-- Maximum ICP translation correction accepted (m). Default: 0.2 -->
+      <param name="Icp/MaxRotation"               type="string" value="0.78"/>  <!-- Maximum ICP rotation correction accepted (rad). Default: 0.78 -->
+      <param name="Icp/MaxCorrespondenceDistance" type="string" value="0.2"/>   <!-- Max distance for point correspondences. Default: 0.1. -->
+      <param name="Icp/PM"                        type="string" value="true"/> 
+      <param name="Icp/PMOutlierRatio"            type="string" value="0.5"/>   <!-- Outlier ratio used with Icp/Strategy>0. For libpointmatcher, this parameter set TrimmedDistOutlierFilter/ratio for convenience when configuration file is not set. For CCCoreLib, this parameter set the "finalOverlapRatio". The value should be between 0 and 1. Default: 0.85.-->
+      <param name="Icp/CorrespondenceRatio"       type="string" value="0.01"/>  <!-- Ratio of matching correspondences to accept the transform. Default: 0.1. -->
+      <param name="Icp/RangeMin"                  type="string" value="1.50"/>  <!-- Minimum range filtering (0=disabled). Default: 0. -->
+      <param name="Icp/RangeMax"                  type="string" value="0.00"/>  <!-- Maximum range filtering (0=disabled). Default: 0. -->
+      <param name="Icp/Strategy"                  type="string" value="1"/>     <!-- ICP implementation: 0=Point Cloud Library, 1=libpointmatcher, 2=CCCoreLib (CloudCompare). Default: 1. -->
 
       <!-- localization mode -->
       <param     if="$(arg localization)" name="Mem/IncrementalMemory" type="bool" value="false"/>
@@ -280,7 +293,9 @@
     </node>
 
     <node type="exploration" name="exploration" pkg="frontiers_exploration" output="screen">
-      <param name="radius_Exploration"  value="1.5"/>
+      <param name="radius_Exploration"        value = "1.0"/>
+      <param name="radius_Valid_Pose"         value = "0.8"/>
+      <param name="dist_Lim_2_Change_Orient"  value = "2.0"/>
     </node>
     
     <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
@@ -300,11 +315,14 @@
 
 
       <remap from="cmd_vel" to="/aunav_velocity_controller/cmd_vel" />
-      <remap from="map" to="/exploration/processedGrid" />
-      <remap from="odom" to="/rtabmap/odom" />
+      <remap from="map" to="/anticrash/processedGrid" />
+      <remap from="odom" to="aunav_velocity_feedback/odom_filtered" />
     </node>
 
     <node type="wheelAdaptativeController" name="wheelAdaptativeController" pkg="frontiers_exploration" output="screen">
+    </node>
+
+    <node type="navigationSlam" name="navigationSlam" pkg="navigation_slam" output="screen">
     </node>
   
 </launch>

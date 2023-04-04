@@ -1,0 +1,165 @@
+<launch>
+
+  <arg name="frame_id"           default="base_link"/>
+  <arg name="rtabmapviz"         default="false"/>
+  <arg name="scan_20_hz"         default="false"/>
+  <arg name="voxel_size"         default="0.1"/> <!-- indoor: 0.1 to 0.3, outdoor: 0.3 to 0.5 -->
+  <arg name="use_sim_time"       default="false"/>
+  <arg name="database_path"      default="Aunav.db"/>
+  <arg name="localization"       default="false"/>
+  <arg name="publish_frame_id"   default="true"/>
+  <arg name="tf_height"          default="0.85" /> <!-- 0.49 -->
+  <arg name="pusblish_guess_id"  default="false" />
+  <arg name="high_resolution"    default="true" />
+  <arg name="wait_for_transform" default="0.2"/>
+  <arg name="intensity_filter"   default="false" />
+  <arg name="fp_Height"          default="3.0" />
+  <arg name="fp_Length"          default="1.0" />
+  <arg name="fp_Width"           default="0.75" />  
+<!--
+  <node type="RobotState" name="RobotState" pkg="robot_state" output="screen">
+    <param name="m_lidarTfX"  value="0.35"/>
+    <param name="m_lidarTfY"  value="-0.2"/>
+    <param name="m_lidarTfZ"  value="1.15"/>
+    <param name="m_tfYaw"  value="0"/>
+    <param name="m_fpHeight"  value="$(arg fp_Height)"/>
+    <param name="m_fpLength"  value="$(arg fp_Length)"/>
+    <param name="m_fpWidth"  value="$(arg fp_Width)"/>
+  </node>
+-->
+  <param if="$(arg use_sim_time)" name="use_sim_time" value="true"/>
+
+  <node if="$(arg publish_frame_id)" pkg="tf" type="static_transform_publisher" name="created_base_to_os_sensor" args="0.35 -0.2  $(arg tf_height) 0 0 0 base_link os_sensor 200" />
+  <!-- <node if="$(arg use_sim_time)" pkg="tf" type="static_transform_publisher" name="created_base_to_os_imu" args="0.25 -0.21 $(arg tf_height) 0 0 0 base_link os_imu 200" /> 
+  <node if="$(arg publish_frame_id)" pkg="tf" type="static_transform_publisher" name="created_left_rear_to_base" args="0.3 -0.18 0 0 0 0 1 base_link base_corner1 200" />
+  <node if="$(arg publish_frame_id)" pkg="tf" type="static_transform_publisher" name="created_left_front_to_base" args="-1.0 -0 18 0 0 0 0 1 base_link base_corner2 200" />
+  <node if="$(arg publish_frame_id)" pkg="tf" type="static_transform_publisher" name="created_right_rear_to_base" args="-1.0 0.53 0 0 0 0 1 base_link base_corner3 200" />
+  <node if="$(arg publish_frame_id)" pkg="tf" type="static_transform_publisher" name="created_right_front_to_base" args="0.3 0.53 0 0 0 0 1 base_link base_corner4 200" /> -->
+
+  <!-- <node if="$(arg intensity_filter)" pkg="ouster_ros" type="os_cloud_node_filter" name="cloud_filter" /> -->
+
+  <arg name="ouster_ns" default="os_cloud_node" doc="Override the default namespace of all ouster nodes"/>
+  <arg name="sensor_hostname" default="192.168.32.35" doc="hostname or IP in dotted decimal form of the sensor"/>
+  <arg name="udp_dest" default="192.168.32.36" doc="hostname or IP where the sensor will send data packets"/>
+  <arg name="lidar_port" default="54163" doc="port to which the sensor should send lidar data"/>
+  <arg name="imu_port" default="45413" doc="port to which the sensor should send imu data"/>
+  <!-- <arg name="replay" default="false" doc="do not connect to a sensor; expect /os_node/{lidar,imu}_packets from replay"/> -->
+  <arg name="lidar_mode" default="1024x10" doc="resolution and rate: either 512x10, 512x20, 1024x10, 1024x20, or 2048x10"/>
+  <arg name="timestamp_mode" default="TIME_FROM_ROS_TIME" doc="method used to timestamp measurements: TIME_FROM_INTERNAL_OSC, TIME_FROM_SYNC_PULSE_IN, TIME_FROM_PTP_1588, TIME_FROM_ROS_TIME"/>
+  <arg name="metadata" default="metadata.json" doc="override default metadata file for replays"/>
+  <arg name="viz" default="false" doc="whether to run a simple visualizer"/>
+  <arg name="rviz_config" default="$(find ouster_ros)/config/viz.rviz" doc="optional rviz config file"/>
+  <!-- <arg name="image" default="false" doc="publish range/intensity/ambient image topic"/> -->
+  <arg name="tf_prefix" default="" doc="namespace for tf transforms"/>
+
+  <group ns="$(arg ouster_ns)">
+    <node pkg="nodelet" type="nodelet" name="os_nodelet_mgr" output="screen" required="true"
+      launch-prefix="bash -c 'sleep 2; $0 $@' "
+      args="manager"/>
+  </group>
+
+  <group ns="$(arg ouster_ns)">
+    <node pkg="nodelet" type="nodelet" name="os_node" output="screen" required="true"
+      launch-prefix="bash -c 'sleep 3; $0 $@' "
+      args="load nodelets_os/OusterSensor os_nodelet_mgr">
+      <param name="~/sensor_hostname" type="str" value="$(arg sensor_hostname)"/>
+      <param name="~/udp_dest" type="str" value="$(arg udp_dest)"/>
+      <param name="~/lidar_port" type="int" value="$(arg lidar_port)"/>
+      <param name="~/imu_port" type="int" value="$(arg imu_port)"/>
+      <param name="~/lidar_mode" type="str" value="$(arg lidar_mode)"/>
+      <param name="~/timestamp_mode" type="str" value="$(arg timestamp_mode)"/>
+      <param name="~/metadata" type="str" value="$(arg metadata)"/>
+    </node>
+  </group>
+
+  <group ns="$(arg ouster_ns)">
+    <node pkg="nodelet" type="nodelet" name="os_cloud_node" output="screen" required="true"
+      launch-prefix="bash -c 'sleep 4; $0 $@' "
+      args="load nodelets_os/OusterCloud os_nodelet_mgr">
+      <remap from="~/os_config" to="/os_node/os_config"/>
+      <remap from="~/lidar_packets" to="/os_node/lidar_packets"/>
+      <remap from="~/imu_packets" to="/os_node/imu_packets"/>
+      <param name="~/tf_prefix" type="str" value="$(arg tf_prefix)"/>
+      <param name="~/timestamp_mode" type="str" value="$(arg timestamp_mode)"/>
+    </node>
+  </group>
+
+  <group ns="$(arg ouster_ns)">
+    <node if="$(arg viz)" pkg="nodelet" type="nodelet" name="img_node" output="screen" required="true"
+      launch-prefix="bash -c 'sleep 4; $0 $@' "
+      args="load nodelets_os/OusterImage os_nodelet_mgr">
+      <remap from="~/os_config" to="/os_node/os_config"/>
+      <remap from="~/points" to="/os_cloud_node/points"/>      
+    </node>
+  </group>
+
+  <node if="$(arg viz)" pkg="rviz" name="rviz" type="rviz" output="screen" required="false"
+    launch-prefix="bash -c 'sleep 5; $0 $@' "
+    args="-d $(arg rviz_config)"/>
+
+  <!-- for compatibility with < 2.0 rosbags -->
+  <node pkg="topic_tools" name="relay_lidar" type="relay" args="/os_node/lidar_packets /$(arg ouster_ns)/lidar_packets"/>
+  <node pkg="topic_tools" name="relay_imu" type="relay" args="/os_node/imu_packets /$(arg ouster_ns)/imu_packets"/>
+
+
+  <!-- IMU orientation estimation and publish tf accordingly to os_sensor frame -->
+  <node pkg="nodelet" type="nodelet" name="imu_nodelet_manager" args="manager">
+    <remap from="imu/data_raw" to="/os_cloud_node/imu"/>
+    <remap from="imu/data" to="/os_cloud_node/imu/data"/>
+    <param name="~/timestamp_mode" type="str" value="$(arg timestamp_mode)"/>   
+  </node>
+  <node pkg="nodelet" type="nodelet" name="imu_filter" args="load imu_filter_madgwick/ImuFilterNodelet imu_nodelet_manager">
+    <param name="use_mag" value="false"/>
+    <param name="world_frame" value="enu"/>
+    <param name="publish_tf" value="false"/>
+    <param name="constant_dt" value="0.01"/>
+  </node>
+  <node if="$(arg pusblish_guess_id)" pkg="nodelet" type="nodelet" name="imu_to_tf" args="load rtabmap_ros/imu_to_tf imu_nodelet_manager">
+    <remap from="imu/data" to="/os_cloud_node/imu/data"/>
+    <param name="fixed_frame_id" value="$(arg frame_id)_stabilized"/>
+    <param name="base_frame_id" value="$(arg frame_id)"/>
+  </node>
+
+
+    <!-- <node pkg="people_follower" type="people_follower" name="people_follower" output="screen" respawn="false">
+      <param name="model_file_name" type="string" value="$(find people_follower)/libsvm/pedestrian.model"/>
+      <param name="range_file_name" type="string" value="$(find people_follower)/libsvm/pedestrian.range"/>
+    </node> -->
+
+    <!-- <node type="antiCrash" name="antiCrash" pkg="anticrash" output="screen">
+    </node> -->
+
+<!--     <node type="exploration" name="exploration" pkg="frontiers_exploration" output="screen">
+      <param name="radius_Exploration"        value = "1.0"/>
+      <param name="radius_Valid_Pose"         value = "0.8"/>
+      <param name="dist_Lim_2_Change_Orient"  value = "2.0"/>
+    </node>
+    
+    <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
+      <rosparam file="$(find navigator)/config/move_base_params.yaml" command="load" />
+
+      <rosparam file="$(find navigator)/config/costmap_common_params.yaml" command="load" ns="global_costmap" />
+      <rosparam file="$(find navigator)/config/costmap_common_params.yaml" command="load" ns="local_costmap" />
+
+      <rosparam file="$(find navigator)/config/local_costmap_params.yaml" command="load" />
+      <rosparam file="$(find navigator)/config/global_costmap_params.yaml" command="load" />
+
+      <rosparam file="$(find navigator)/config/dwa_local_planner_params.yaml" command="load" />
+      <rosparam file="$(find navigator)/config/base_local_planner_params.yaml" command="load" />
+
+      <rosparam file="$(find navigator)/config/global_planner_params.yaml" command="load" />
+      <rosparam file="$(find navigator)/config/navfn_global_planner_params.yaml" command="load" />
+
+
+      <remap from="cmd_vel" to="/aunav_velocity_controller/cmd_vel" />
+      <remap from="map" to="/anticrash/processedGrid" />
+      <remap from="odom" to="aunav_velocity_feedback/odom_filtered" />
+    </node>
+
+    <node type="wheelAdaptativeController" name="wheelAdaptativeController" pkg="navigator" output="screen">
+    </node>
+
+    <node type="navigationSlam" name="navigationSlam" pkg="navigation_slam" output="screen">
+    </node> -->
+  
+</launch>
