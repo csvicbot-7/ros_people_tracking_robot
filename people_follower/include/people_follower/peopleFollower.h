@@ -78,7 +78,7 @@ private:
 	bool m_humanSizeLimit;
 
 	bool m_startTracking;
-	bool m_firstIter;
+	bool m_firstIter = true;
 	pcl::PointXYZ m_humanPos;
   pcl::PointXYZ m_lastHumanPos;
 	geometry_msgs::Point m_humanGoal;
