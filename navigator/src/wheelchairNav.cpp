@@ -58,21 +58,26 @@ void spin() {
 	ros::Rate loop_rate(10);
 
 	while (ros::ok()) {
-		bool bLockGet = shmMemory.getData(m_sRtoE);
-		if (bLockGet)
-			m_startSm = m_sRtoE.start;
+		m_bLockGet = shmMemory.getData(m_sRtoE);
+		m_startSm = m_sRtoE.start;
+
 		if (m_startSm) {
 			if (m_mapReceived) {
 				if (refreshWheelchairPose()) {
-					if (m_humanPose.y > 0)
+					ROS_WARN("After refreshWheelchairPose");
+					if (m_humanPose.y > 0) //TODO Define if m_humanPose.y == 0;
 						m_side = 0;
 					else
 						m_side = 1;
+					ROS_WARN("m_humanPose X = %f Y = %f", m_humanPose.x, m_humanPose.y);
+					ROS_WARN("Before switch");
 					switch (m_wheelchairStatus)
 					{
 						case WheelchairStatus::STAND_BY: {
+							ROS_WARN("Into STAND_BY");
 							geometry_msgs::Point evalWheelchairPose, refWheelchairPose;
 							evalWheelchairPose = estimatedWheelchairPose(m_humanPose, 1.5);
+							ROS_WARN("evalWheelchairPose X = %f Y = %f", evalWheelchairPose.x, evalWheelchairPose.y);
 							publishPointMarker(evalWheelchairPose, "os_sensor");
 							refWheelchairPose.x = 0.0;
 							refWheelchairPose.y = 0.0;
@@ -193,14 +198,18 @@ void spin() {
 }
 
 void occupancygridCallback(const nav_msgs::OccupancyGrid::ConstPtr& msg) {
+	ROS_WARN("m_startSm 1 [occupancygridCallback] = %d", m_startSm);
 	if(m_startSm) {
+		ROS_WARN("Into occupancy grid callback");
 		m_map = *msg;
 		m_mapReceived = true;
 	}
+	ROS_WARN("m_startSm 2 [occupancygridCallback] = %d", m_startSm);
 }
 
 void humanPoseCallback(const geometry_msgs::Point::ConstPtr& humanPose) {
 	if(m_startSm) {
+		ROS_WARN("Into human pose callback");
 		if (transPointOS2BL(*humanPose, m_humanPose)) {
 			if (m_firstRefreshHumanPose) {
 				m_prevHumanPose = m_humanPose;
@@ -218,13 +227,17 @@ void humanPoseCallback(const geometry_msgs::Point::ConstPtr& humanPose) {
 }
 
 bool refreshWheelchairPose(){
+	ROS_WARN("Into refresh wheelchair pose");
+	ROS_WARN("m_startSm 1 [refreshWheelchairPose] %d = ", m_startSm);
 	tf::StampedTransform transform;
 	std::string parentFrame = "map";
 	std::string childFrame = "base_link";
-
 	try {
+		ROS_WARN("m_startSm 2 [refreshWheelchairPose] %d = ", m_startSm);
 		if (m_listener->waitForTransform(parentFrame, childFrame, ros::Time(0), ros::Duration(5.0))) {
+			ROS_WARN("m_startSm 3 [refreshWheelchairPose] %d = ", m_startSm);
 			m_listener->lookupTransform(parentFrame, childFrame, ros::Time(0), transform);
+			ROS_WARN("m_startSm 4 [refreshWheelchairPose] %d = ", m_startSm);
 			m_counterError = 0;
 		} else {
 			m_counterError++;
@@ -242,87 +255,108 @@ bool refreshWheelchairPose(){
 		ROS_ERROR("%s",ex.what());
 		return false;
 	}
-
+	ROS_WARN("m_startSm 5 [refreshWheelchairPose] %d = ", m_startSm);
 	m_wheelchairPose.position.x = transform.getOrigin().x();
 	m_wheelchairPose.position.y = transform.getOrigin().y();
 	m_wheelchairPose.position.z = 0.0;
 	m_wheelchairPose.orientation = tf::createQuaternionMsgFromYaw(tf::getYaw(transform.getRotation()));
-
+	ROS_WARN("m_startSm 6 [refreshWheelchairPose] %d = ", m_startSm);
 	if (m_firstRefresWheelchairPose) {
 		m_prevWheelchairPose = m_wheelchairPose;
 		m_firstRefresWheelchairPose = false;
 	}
 
 	m_prevWheelchairPose = m_wheelchairPose;
-
+	ROS_WARN("m_startSm 7 [refreshWheelchairPose] %d = ", m_startSm);
 	return true;
 }
 
 geometry_msgs::Point estimatedWheelchairPose(const geometry_msgs::Point &humanPose, float dist) {
+	ROS_WARN("m_humanOrientation = %f; m_side = %d", m_humanOrientation, m_side);
 	geometry_msgs::Point estimatedPose;
 	if (m_side == 0) {
+		ROS_WARN("m_side == 0");
 		if (m_humanOrientation == 0) {
+			ROS_WARN("m_humanOrientation == 0");
 			estimatedPose.x = humanPose.x;
 			estimatedPose.y = humanPose.y - dist;
 
 		} else if (0 < m_humanOrientation && m_humanOrientation < M_PI/2) {
+			ROS_WARN("0 < m_humanOrientation && m_humanOrientation < M_PI/2");
 			estimatedPose.x = humanPose.x + dist * sin(m_humanOrientation);
 			estimatedPose.y = humanPose.y - dist * cos(m_humanOrientation);
 
 		} else if (m_humanOrientation == M_PI/2) {
+			ROS_WARN("m_humanOrientation == M_PI/2");
 			estimatedPose.x = humanPose.x + dist;
 			estimatedPose.y = humanPose.y;
 
 		} else if (M_PI/2 < m_humanOrientation && m_humanOrientation < M_PI) {
+			ROS_WARN("M_PI/2 < m_humanOrientation && m_humanOrientation < M_PI");
 			estimatedPose.x = humanPose.x - dist * sin(M_PI - m_humanOrientation);
 			estimatedPose.y = humanPose.y - dist * cos(M_PI - m_humanOrientation);
 
 		} else if (m_humanOrientation == M_PI || m_humanOrientation == -M_PI) {
+			ROS_WARN("m_humanOrientation == M_PI || m_humanOrientation == -");
 			estimatedPose.x = humanPose.x;
 			estimatedPose.y = humanPose.y - dist;
 
 		} else if (-M_PI/2 < m_humanOrientation && m_humanOrientation < 0) {
+			ROS_WARN("-M_PI/2 < m_humanOrientation && m_humanOrientation < 0");
 			estimatedPose.x = humanPose.x - dist * sin(abs(m_humanOrientation));
 			estimatedPose.y = humanPose.y - dist * cos(abs(m_humanOrientation));
 
 		} else if (m_humanOrientation == -M_PI/2) {
+			ROS_WARN("m_humanOrientation == -M_PI/2");
 			estimatedPose.x = humanPose.x - dist;
 			estimatedPose.y = humanPose.y;
 
 		} else if (-M_PI < m_humanOrientation && m_humanOrientation < -M_PI/2) {
+			ROS_WARN("-M_PI < m_humanOrientation && m_humanOrientation < -M_PI/2");
 			estimatedPose.x = humanPose.x + dist * sin(M_PI - abs(m_humanOrientation));
 			estimatedPose.y = humanPose.y - dist * cos(M_PI - abs(m_humanOrientation));
 		}
 	} else {
+		ROS_WARN("m_side == 1");
 		if (m_humanOrientation == 0) {
+			ROS_WARN("m_humanOrientation == 0");
+			ROS_WARN("dist = %f", dist);
 			estimatedPose.x = humanPose.x;
 			estimatedPose.y = humanPose.y + dist;
+			ROS_WARN("estimatedPose.y = %f", estimatedPose.y);
 
 		} else if (-M_PI/2 < m_humanOrientation && m_humanOrientation < 0) {
+			ROS_WARN("-M_PI/2 < m_humanOrientation && m_humanOrientation < 0");
 			estimatedPose.x = humanPose.x + dist * sin(abs(m_humanOrientation));
 			estimatedPose.y = humanPose.y + dist * cos(abs(m_humanOrientation));
 
 		} else if (m_humanOrientation == -M_PI/2) {
+			ROS_WARN("m_humanOrientation == -M_PI/2");
 			estimatedPose.x = humanPose.x + dist;
 			estimatedPose.y = humanPose.y;
 
 		} else if (-M_PI < m_humanOrientation && m_humanOrientation < -M_PI/2) {
+			ROS_WARN("-M_PI < m_humanOrientation && m_humanOrientation < -M_PI/2");
 			estimatedPose.x = humanPose.x - dist * sin(M_PI - abs(m_humanOrientation));
 			estimatedPose.y = humanPose.y + dist * cos(M_PI - abs(m_humanOrientation));
 			
 		} else if (m_humanOrientation == M_PI || m_humanOrientation == -M_PI) {
+			ROS_WARN("m_humanOrientation == M_PI || m_humanOrientation == -M_PI");
 			estimatedPose.x = humanPose.x;
 			estimatedPose.y = humanPose.y + dist;
 
 		} else if (0 < m_humanOrientation && m_humanOrientation < M_PI/2) {
+			ROS_WARN("0 < m_humanOrientation && m_humanOrientation < M_PI/2");
 			estimatedPose.x = humanPose.x - dist * sin(m_humanOrientation);
 			estimatedPose.y = humanPose.y + dist * cos(m_humanOrientation);
 
 		} else if (m_humanOrientation == M_PI/2) {
+			ROS_WARN("m_humanOrientation == M_PI/2");
 			estimatedPose.x = humanPose.x - dist;
 			estimatedPose.y = humanPose.y;
 
 		} else if (M_PI/2 < m_humanOrientation && m_humanOrientation < M_PI) {
+			ROS_WARN("M_PI/2 < m_humanOrientation && m_humanOrientation < M_PI");
 			estimatedPose.x = humanPose.x + dist * sin(M_PI - m_humanOrientation);
 			estimatedPose.y = humanPose.y + dist * cos(M_PI - m_humanOrientation);
 		}
@@ -331,6 +365,7 @@ geometry_msgs::Point estimatedWheelchairPose(const geometry_msgs::Point &humanPo
 }
 
 bool transPointBL2M(const geometry_msgs::Point &pointIn, geometry_msgs::Point &pointOut) {
+	ROS_WARN("Into transPointBL2M");
 	std::string parentFrame = "map";
 	std::string childFrame = "base_link";
 
@@ -356,7 +391,9 @@ bool transPointBL2M(const geometry_msgs::Point &pointIn, geometry_msgs::Point &p
 	poseInS.header.frame_id = childFrame;
 	poseInS.header.stamp = ros::Time::now();
 	poseInS.point = pointIn;
+	ROS_WARN("Before transform point [transPointBL2M]");
 	m_listener->transformPoint(parentFrame, poseInS, poseOutS);
+	ROS_WARN("After transform point [transPointBL2M]");
   pointOut = poseOutS.point;
 	ROS_WARN("Navigator [transPointBL2M]: Point in base_link = (%.2f, %.2f. %.2f) -> Point in map = (%.2f, %.2f, %.2f)",
 						pointIn.x, pointIn.y, pointIn.z, pointOut.x, pointOut.y, pointOut.z);
