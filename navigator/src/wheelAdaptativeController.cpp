@@ -82,8 +82,8 @@ int main(int argc, char **argv) {
 		float vrRf = m_targetLinearX + (m_wheelBase / 2) * m_targetAngularZ; // Reference linear velocity of the right track
 		float vlRf = m_targetLinearX - (m_wheelBase / 2) * m_targetAngularZ; // Reference linear velocity of the left  track
 		////
-		ROS_INFO_STREAM("vrRf (wheel speed_R from m_wheelBase): " << vrRf << " vlRf (wheel speed_L from m_wheelBase): " << vlRf);
-		ROS_INFO_STREAM("vr  : " << m_realSpeedRight << " vl: " << m_realSpeedLeft);
+		//ROS_INFO_STREAM("vrRf (wheel speed_R from m_wheelBase): " << vrRf << " vlRf (wheel speed_L from m_wheelBase): " << vlRf);
+		//ROS_INFO_STREAM("vr  : " << m_realSpeedRight << " vl: " << m_realSpeedLeft);
 		////
 		float odomLinearFiltered  = (m_odomLineal + m_odomLinealPrevious) / 2;
 		float odomAngularFiltered = (m_odomAngular + m_odomAngularPrevious) / 2;
@@ -173,8 +173,8 @@ int main(int argc, char **argv) {
 			wheelOdom.publish(odomVelValues);
 			increment.publish(incrementalVal);
 		}
-		ROS_INFO_STREAM("wheelSpeedRight a_c: " << wheelValues.wheelSpeedRight << " wheelSpeedLeft a_c: " << wheelValues.wheelSpeedLeft);
-		ROS_INFO_STREAM("Slip Factor: " << m_slipFactor);
+		//ROS_INFO_STREAM("wheelSpeedRight a_c: " << wheelValues.wheelSpeedRight << " wheelSpeedLeft a_c: " << wheelValues.wheelSpeedLeft);
+		//ROS_INFO_STREAM("Slip Factor: " << m_slipFactor);
 		wheelController.publish(wheelValues);
 		if (stopRobot) {
 			wheelValues.wheelSpeedRight = 0.0;
@@ -231,13 +231,13 @@ void velocityCallback(const geometry_msgs::Twist& msg) {
 	m_lastTargetAngularZ = m_targetAngularZ;
 	m_targetLinearX  = msg.linear.x;
 	m_targetAngularZ = msg.angular.z;
-	ROS_INFO_STREAM("Linear speed from m_wheelBase: " << m_targetLinearX << "Angular speed from m_wheelBase: " << m_targetAngularZ);
+	//ROS_INFO_STREAM("Linear speed from m_wheelBase: " << m_targetLinearX << "Angular speed from m_wheelBase: " << m_targetAngularZ);
 }
 
 void feedbackCallback(const frontiers_exploration::wheelSpeed& msg) {
 	m_realSpeedRight = msg.wheelSpeedRight;
 	m_realSpeedLeft = msg.wheelSpeedLeft;
-	ROS_INFO_STREAM("Feedback wheel speed rigth: " << m_realSpeedRight << " Feedback wheel speed left: " << m_realSpeedLeft);
+	//ROS_INFO_STREAM("Feedback wheel speed rigth: " << m_realSpeedRight << " Feedback wheel speed left: " << m_realSpeedLeft);
 }
 
 void odometryCallback(const nav_msgs::Odometry& msg) {
@@ -264,7 +264,7 @@ void odometryCallback(const nav_msgs::Odometry& msg) {
 		m_xRf = m_posX;
 		m_yRf = m_posY;
 		m_thetaRf = m_orientation;
-		ROS_INFO_STREAM("Starting: \n x: " << m_posX << " y" << m_posY << " theta" << m_orientation);
+		//ROS_INFO_STREAM("Starting: \n x: " << m_posX << " y" << m_posY << " theta" << m_orientation);
 		m_init = false;
 	}
 	m_send = true;
