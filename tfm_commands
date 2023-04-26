@@ -1,0 +1,19 @@
+roslaunch people_follower people_follower.launch
+rostopic pub /people_follower/start std_msgs/Bool "true"
+rosrun navigator wheelchairNav
+rosbag record -a
+
+export ROS_MASTER_URI=http://192.168.32.198:11311
+export ROS_IP=192.168.32.32
+
+source /opt/ros/noetic/setup.bash
+source ~/ros/rosslam_ws/devel/setup.bash
+
+scp -r everis@192.168.32.198:/home/everis/.config/everis/ /home/modpow/Documentos/ConfigFiles/
+
+scp -r everis@192.168.32.198:/opt/rosslam_ws/ /home/modpow/Documents/neo_files/
+
+scp -r everis@192.168.32.198:/home/everis/ros/rosslam_ws/bagfiles/ /media/modpow/ROS1/home/modpow/Documents/tfm_rosbags/
+
+
+scp -r /home/modpow/tfm/tfm_ws/devel/ everis@192.168.32.198:/opt/rosslam_ws/
