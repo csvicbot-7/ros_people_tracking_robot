@@ -65,6 +65,7 @@ void spin() {
 			if (m_mapReceived) {
 				if (refreshWheelchairPose()) {
 					ROS_WARN("After refreshWheelchairPose");
+					publishPointMarker(m_humanPose, "base_link");
 					if (m_humanPose.y > 0) //TODO Define if m_humanPose.y == 0;
 						m_side = 0;
 					else
@@ -76,7 +77,7 @@ void spin() {
 						case WheelchairStatus::STAND_BY: {
 							ROS_WARN("Into STAND_BY");
 							geometry_msgs::Point evalWheelchairPose, refWheelchairPose;
-							evalWheelchairPose = estimatedWheelchairPose(m_humanPose, 1.5);
+							evalWheelchairPose = estimatedWheelchairPose(m_humanPose, 1.2);
 							ROS_WARN("evalWheelchairPose X = %f Y = %f", evalWheelchairPose.x, evalWheelchairPose.y);
 							publishPointMarker(evalWheelchairPose, "base_link");
 							refWheelchairPose.x = 0.0;
@@ -115,7 +116,7 @@ void spin() {
 							geometry_msgs::Pose wheelchairPoseBL;
 							float inc = 0.0;
 							for (int i = 0; i < 3; i++) {
-								wheelchairPoseBL.position.x = 2.5 + inc;
+								wheelchairPoseBL.position.x = 2.0 + inc;
 								wheelchairPoseBL.position.y = 0.0;
 								wheelchairPoseBL.position.z = 0.0;
 								tf::quaternionTFToMsg (tf::createQuaternionFromRPY(0.0,0.0,m_humanOrientation), wheelchairPoseBL.orientation);
@@ -140,11 +141,11 @@ void spin() {
 							geometry_msgs::Point refHumanPose;
 							if (m_side == 0) {
 								refHumanPose.x = 0.0;
-								refHumanPose.y = 1.5;
+								refHumanPose.y = 1.2;
 								refHumanPose.z = 0.0;
 							} else {
 								refHumanPose.x = 0.0;
-								refHumanPose.y = -1.5;
+								refHumanPose.y = -1.2;
 								refHumanPose.z = 0.0;
 							}
 							publishPointMarker(refHumanPose, "base_link");
@@ -651,11 +652,11 @@ void moveWheelchairDone(const actionlib::SimpleClientGoalState& state,  const mo
 			geometry_msgs::Point refHumanPose;
 			if (m_side == 0) {
 				refHumanPose.x = 0.0;
-				refHumanPose.y = 1.5;
+				refHumanPose.y = 1.2;
 				refHumanPose.z = 0.0;
 			} else {
 				refHumanPose.x = 0.0;
-				refHumanPose.y = -1.5;
+				refHumanPose.y = -1.2;
 				refHumanPose.z = 0.0;
 			}
 			if (pointInsideZone(m_humanPose, refHumanPose, m_radiusHuamn)) {
