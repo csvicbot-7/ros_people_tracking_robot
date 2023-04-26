@@ -215,7 +215,7 @@ void PeopleFollower::cropBox (const sensor_msgs::PointCloud2ConstPtr& cloudMsg,
 	} else {
 		if (m_firstIter) {
 			m_humanPos.x = 0.0f;
-			m_humanPos.y = 1.5f;
+			m_humanPos.y = 1.2f;
 			m_humanPos.z = 0.0f;
 			m_distX = m_humanPos.x + 1.0f;
 			m_distY = m_humanPos.y + 1.0f;  
